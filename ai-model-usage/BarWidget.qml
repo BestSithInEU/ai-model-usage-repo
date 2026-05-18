@@ -38,7 +38,7 @@ Item {
                 return "\u2014";
             }
             const secondary = activeProvider.secondaryRateLimitPercent ?? -1;
-            if ((activeProvider.providerId ?? "") === "minimax" && secondary >= 0)
+            if (secondary >= 0)
                 return Math.round(rl * 100) + "/" + Math.round(secondary * 100);
             return Math.round(rl * 100) + "%";
         }
