@@ -94,13 +94,14 @@ Item {
     }
 
     onEnabledChanged: {
-        if (enabled && apiKey !== "")
-            fetchQuota();
+        if (!enabled)
+            return;
+        refresh();
     }
 
     onApiKeyChanged: {
-        if (enabled && apiKey !== "")
-            fetchQuota();
+        if (enabled)
+            refresh();
     }
 
     // ----- Fetch -----
@@ -113,9 +114,15 @@ Item {
     }
 
     function fetchQuota() {
-        if (!root.apiKey)
+        if (!root.apiKey) {
+            root.usageStatusText = "Missing API key";
+            root.rateLimitPercent = -1;
+            root.secondaryRateLimitPercent = -1;
+            root.ready = true;
             return;
+        }
 
+        root.ready = false;
         root.usageStatusText = "";
         root.fetchQuotaEndpoint([
             "/api/openplatform/coding_plan/remains",
@@ -140,9 +147,10 @@ Item {
                     root.fetchQuotaEndpoint(paths, index + 1, err);
                     return;
                 }
-                root.usageStatusText = err;
+                root.usageStatusText = err + " from " + url;
                 root.rateLimitPercent = -1;
                 root.secondaryRateLimitPercent = -1;
+                root.ready = true;
                 return;
             }
 
@@ -162,9 +170,10 @@ Item {
                         root.fetchQuotaEndpoint(paths, index + 1, msg);
                         return;
                     }
-                    root.usageStatusText = msg;
+                    root.usageStatusText = msg + " from " + url;
                     root.rateLimitPercent = -1;
                     root.secondaryRateLimitPercent = -1;
+                    root.ready = true;
                     return;
                 }
 
@@ -178,7 +187,7 @@ Item {
                     return;
                 }
 
-                root.usageStatusText = lastError || "No quota data";
+                root.usageStatusText = (lastError || "No quota data") + " from " + url;
                 root.rateLimitPercent = -1;
                 root.secondaryRateLimitPercent = -1;
                 root.ready = true;
@@ -187,9 +196,10 @@ Item {
                     root.fetchQuotaEndpoint(paths, index + 1, "Parse error");
                     return;
                 }
-                root.usageStatusText = "Parse error";
+                root.usageStatusText = "Parse error from " + url;
                 root.rateLimitPercent = -1;
                 root.secondaryRateLimitPercent = -1;
+                root.ready = true;
                 Logger.e("model-usage/minimax", "Failed to parse quota response:", e);
             }
         };
@@ -205,8 +215,8 @@ Item {
     }
 
     function firstFinite(values) {
-        for (const value of values) {
-            const n = root.parseFinite(value);
+        for (let i = 0; i < values.length; i++) {
+            const n = root.parseFinite(values[i]);
             if (isFinite(n))
                 return n;
         }
@@ -289,7 +299,8 @@ Item {
         // Prefer MiniMax-M* coding models; fall back to the row with the
         // tightest quota utilization.
         let codingRow = null;
-        for (const rec of records) {
+        for (let i = 0; i < records.length; i++) {
+            const rec = records[i];
             const id = rec?.model_name ?? rec?.model ?? "";
             if (/^MiniMax-M/i.test(id)) {
                 codingRow = rec;
@@ -348,8 +359,7 @@ Item {
     }
 
     function refresh() {
-        if (root.apiKey !== "")
-            fetchQuota();
+        fetchQuota();
     }
 
     function formatResetTime(isoTimestamp) {

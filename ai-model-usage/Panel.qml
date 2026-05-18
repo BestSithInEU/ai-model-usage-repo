@@ -174,6 +174,43 @@ Item {
                             }
                         }
                     }
+                    Rectangle {
+                        visible: !!root.selectedProvider
+                                 && (root.selectedProvider?.ready ?? false)
+                                 && (root.selectedProvider?.usageStatusText ?? "") === ""
+                                 && (root.selectedProvider?.rateLimitPercent ?? -1) < 0
+                                 && (root.selectedProvider?.secondaryRateLimitPercent ?? -1) < 0
+                                 && !(root.selectedProvider?.hasLocalStats ?? false)
+                        Layout.fillWidth: true
+                        color: Qt.alpha(Color.mError, 0.12)
+                        radius: Style.radiusS
+                        implicitHeight: emptyStatusColumn.implicitHeight + Style.marginXL
+
+                        ColumnLayout {
+                            id: emptyStatusColumn
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                top: parent.top
+                                margins: Style.marginL
+                            }
+                            spacing: Style.marginXS
+
+                            NText {
+                                text: "No usage data"
+                                pointSize: Style.fontSizeM
+                                font.weight: Style.fontWeightSemiBold
+                                color: Color.mError
+                            }
+
+                            NText {
+                                text: root.selectedProvider?.authHelpText ?? ""
+                                pointSize: Style.fontSizeXS
+                                color: Color.mOnSurfaceVariant
+                            }
+                        }
+                    }
+
 
                     Rectangle {
                         visible: (root.selectedProvider?.rateLimitPercent ?? -1) >= 0
