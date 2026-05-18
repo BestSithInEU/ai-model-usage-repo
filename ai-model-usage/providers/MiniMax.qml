@@ -105,12 +105,26 @@ Item {
 
     // ----- Fetch -----
 
+    function quotaUrl(path) {
+        let base = String(root.apiBaseUrl ?? "").trim();
+        while (base.endsWith("/"))
+            base = base.slice(0, -1);
+        return base.endsWith("/v1") ? (base + path) : (base + "/v1" + path);
+    }
+
     function fetchQuota() {
         if (!root.apiKey)
             return;
 
         root.usageStatusText = "";
-        const url = root.apiBaseUrl + "/v1/api/openplatform/coding_plan/remains";
+        root.fetchQuotaEndpoint([
+            "/api/openplatform/coding_plan/remains",
+            "/token_plan/remains"
+        ], 0, "");
+    }
+
+    function fetchQuotaEndpoint(paths, index, lastError) {
+        const url = root.quotaUrl(paths[index]);
         const xhr = new XMLHttpRequest();
         xhr.open("GET", url);
         xhr.setRequestHeader("Authorization", "Bearer " + root.apiKey);
@@ -121,7 +135,12 @@ Item {
                 return;
 
             if (xhr.status !== 200) {
-                root.usageStatusText = "HTTP " + xhr.status;
+                const err = "HTTP " + xhr.status;
+                if (index + 1 < paths.length) {
+                    root.fetchQuotaEndpoint(paths, index + 1, err);
+                    return;
+                }
+                root.usageStatusText = err;
                 root.rateLimitPercent = -1;
                 root.secondaryRateLimitPercent = -1;
                 return;
@@ -130,7 +149,6 @@ Item {
             try {
                 const data = JSON.parse(xhr.responseText);
 
-                // Check application-level status code
                 const appStatus = data?.base_resp?.status_code
                                ?? data?.base_resp?.statuscode
                                ?? data?.status_code
@@ -140,15 +158,35 @@ Item {
                              ?? data?.base_resp?.message
                              ?? data?.message
                              ?? ("status " + appStatus);
+                    if (index + 1 < paths.length) {
+                        root.fetchQuotaEndpoint(paths, index + 1, msg);
+                        return;
+                    }
                     root.usageStatusText = msg;
                     root.rateLimitPercent = -1;
                     root.secondaryRateLimitPercent = -1;
                     return;
                 }
 
-                root.parseModelRemains(data);
+                if (root.parseQuotaResponse(data)) {
+                    root.ready = true;
+                    return;
+                }
+
+                if (index + 1 < paths.length) {
+                    root.fetchQuotaEndpoint(paths, index + 1, "No quota data");
+                    return;
+                }
+
+                root.usageStatusText = lastError || "No quota data";
+                root.rateLimitPercent = -1;
+                root.secondaryRateLimitPercent = -1;
                 root.ready = true;
             } catch (e) {
+                if (index + 1 < paths.length) {
+                    root.fetchQuotaEndpoint(paths, index + 1, "Parse error");
+                    return;
+                }
                 root.usageStatusText = "Parse error";
                 root.rateLimitPercent = -1;
                 root.secondaryRateLimitPercent = -1;
@@ -159,13 +197,97 @@ Item {
         xhr.send();
     }
 
-    function parseModelRemains(data) {
-        const records = data?.model_remains ?? [];
+    function parseFinite(value) {
+        if (value === null || value === undefined || value === "")
+            return NaN;
+        const n = Number(value);
+        return isFinite(n) ? n : NaN;
+    }
+
+    function firstFinite(values) {
+        for (const value of values) {
+            const n = root.parseFinite(value);
+            if (isFinite(n))
+                return n;
+        }
+        return NaN;
+    }
+
+    function normalizeRecords(modelRemains) {
+        if (Array.isArray(modelRemains))
+            return modelRemains;
+        if (!modelRemains || typeof modelRemains !== "object")
+            return [];
+
+        const result = [];
+        for (const key in modelRemains) {
+            const value = modelRemains[key];
+            if (value && typeof value === "object") {
+                value.model_name = value.model_name ?? value.model ?? key;
+                result.push(value);
+            }
+        }
+        return result;
+    }
+
+    function parseQuotaResponse(data) {
+        const modelRemains = data?.model_remains
+                          ?? data?.data?.model_remains
+                          ?? data?.result?.model_remains;
+        const records = root.normalizeRecords(modelRemains);
+
+        if (records.length > 0)
+            return root.parseModelRemains(records);
+
+        const quota = data?.data ?? data?.result ?? data;
+        return root.parseFlatQuota(quota);
+    }
+
+    function parseFlatQuota(quota) {
+        if (!quota || typeof quota !== "object")
+            return false;
+
+        const total = root.firstFinite([
+            quota.total_quota,
+            quota.total,
+            quota.quota,
+            quota.total_intervals
+        ]);
+        let used = root.firstFinite([
+            quota.used_quota,
+            quota.used,
+            quota.current_interval_usage_count
+        ]);
+        const remaining = root.firstFinite([
+            quota.remaining_quota,
+            quota.remaining,
+            quota.tokens,
+            quota.current_interval_remaining_count
+        ]);
+
+        if (!(total > 0))
+            return false;
+        if (!isFinite(used) && isFinite(remaining))
+            used = total - remaining;
+        if (!isFinite(used))
+            return false;
+
+        used = Math.min(total, Math.max(0, used));
+        root.rateLimitPercent = Math.min(1, Math.max(0, used / total));
+        root.rateLimitLabel = "5h window";
+        root.rateLimitResetAt = quota.reset_timestamp ? new Date(Number(quota.reset_timestamp) * 1000).toISOString() : "";
+        root.secondaryRateLimitPercent = -1;
+        root.secondaryRateLimitLabel = "";
+        root.secondaryRateLimitResetAt = "";
+        return true;
+    }
+
+    function parseModelRemains(records) {
         if (records.length === 0)
-            return;
+            return false;
 
         // Prefer MiniMax-M* coding models; fall back to the row with the
-        // tightest remaining quota (lowest remaining/total ratio).
+        // tightest quota utilization.
         let codingRow = null;
         for (const rec of records) {
             const id = rec?.model_name ?? rec?.model ?? "";
@@ -176,49 +298,53 @@ Item {
             if (!codingRow) {
                 codingRow = rec;
             } else {
-                // Compare remaining ratio; prefer tighter
-                const prevTotal = codingRow?.total_intervals ?? 0;
-                const prevRemaining = codingRow?.current_interval_usage_count ?? 0;
-                const prevRatio = prevTotal > 0 ? prevRemaining / prevTotal : 0;
+                const prevTotal = root.firstFinite([codingRow?.total_intervals, codingRow?.total]);
+                const prevUsed = root.firstFinite([codingRow?.current_interval_usage_count, codingRow?.used]);
+                const prevRatio = prevTotal > 0 && isFinite(prevUsed) ? prevUsed / prevTotal : 0;
 
-                const currTotal = rec?.total_intervals ?? 0;
-                const currRemaining = rec?.current_interval_usage_count ?? 0;
-                const currRatio = currTotal > 0 ? currRemaining / currTotal : 0;
+                const currTotal = root.firstFinite([rec?.total_intervals, rec?.total]);
+                const currUsed = root.firstFinite([rec?.current_interval_usage_count, rec?.used]);
+                const currRatio = currTotal > 0 && isFinite(currUsed) ? currUsed / currTotal : 0;
 
-                if (currRatio < prevRatio)
+                if (currRatio > prevRatio)
                     codingRow = rec;
             }
         }
 
         if (!codingRow)
-            return;
+            return false;
 
-        const total5h   = codingRow?.total_intervals          ?? 0;
-        const remain5h  = codingRow?.current_interval_usage_count ?? 0;
-        const totalWk   = codingRow?.total_weekly_intervals   ?? 0;
-        const remainWk = codingRow?.current_weekly_usage_count ?? 0;
+        const total5h = root.firstFinite([codingRow?.total_intervals, codingRow?.total]);
+        const used5h = root.firstFinite([codingRow?.current_interval_usage_count, codingRow?.used]);
+        const totalWk = root.firstFinite([codingRow?.total_weekly_intervals, codingRow?.weekly_total]);
+        const usedWk = root.firstFinite([codingRow?.current_weekly_usage_count, codingRow?.weekly_used]);
+
+        let parsed = false;
 
         // 5-hour rolling window -> primary
-        if (total5h > 0) {
-            root.rateLimitPercent = Math.min(1, Math.max(0, (total5h - remain5h) / total5h));
+        if (total5h > 0 && isFinite(used5h)) {
+            root.rateLimitPercent = Math.min(1, Math.max(0, used5h / total5h));
             root.rateLimitLabel = "5h window";
             // No discrete reset time in this endpoint -- leave resetAt empty
             root.rateLimitResetAt = "";
+            parsed = true;
         } else {
             root.rateLimitPercent = -1;
         }
 
         // Weekly window -> secondary (only if weekly fields are present)
-        if (totalWk > 0) {
-            root.secondaryRateLimitPercent = Math.min(1, Math.max(0, (totalWk - remainWk) / totalWk));
+        if (totalWk > 0 && isFinite(usedWk)) {
+            root.secondaryRateLimitPercent = Math.min(1, Math.max(0, usedWk / totalWk));
             root.secondaryRateLimitLabel = "Weekly (7-day)";
             root.secondaryRateLimitResetAt = "";
+            parsed = true;
         } else {
-            // No weekly data in this snapshot -- clear stale value
             root.secondaryRateLimitPercent = -1;
             root.secondaryRateLimitLabel = "";
             root.secondaryRateLimitResetAt = "";
         }
+
+        return parsed;
     }
 
     function refresh() {
