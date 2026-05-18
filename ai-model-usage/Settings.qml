@@ -419,6 +419,7 @@ ColumnLayout {
                         if (!editSettings.providers.minimax)
                             editSettings.providers.minimax = {};
                         editSettings.providers.minimax.apiKey = text;
+                        editSettingsChanged();
                     }
                 }
 
@@ -445,6 +446,7 @@ ColumnLayout {
                             if (!editSettings.providers.minimax)
                                 editSettings.providers.minimax = {};
                             editSettings.providers.minimax.region = key;
+                            editSettingsChanged();
                         }
                     }
                 }
