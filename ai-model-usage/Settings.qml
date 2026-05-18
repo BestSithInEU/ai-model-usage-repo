@@ -17,8 +17,13 @@ ColumnLayout {
     }
 
     function applySettingsChange() {
+        const nextSettings = JSON.parse(JSON.stringify(root.editSettings));
         if (pluginApi) {
-            pluginApi.pluginSettings = JSON.parse(JSON.stringify(root.editSettings));
+            pluginApi.pluginSettings = nextSettings;
+            if (pluginApi.mainInstance) {
+                pluginApi.mainInstance.pluginSettings = nextSettings;
+                pluginApi.mainInstance.refresh();
+            }
             pluginApi.saveSettings();
         }
         editSettingsChanged();
