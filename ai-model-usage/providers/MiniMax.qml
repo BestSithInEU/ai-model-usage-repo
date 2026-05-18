@@ -32,8 +32,9 @@ Item {
     property string tierLabel: ""
     property string authHelpText: "Set MINIMAX_API_KEY or enter key in settings."
     property bool hasLocalStats: false
-
     property var providerSettings: ({})
+    property string diagnosticText: ""
+    property int settingsApiKeyLength: String(providerSettings?.apiKey ?? "").trim().length
 
     // ----- API key resolution -----
 
@@ -85,6 +86,11 @@ Item {
     }
 
     // ----- Refresh timer -----
+    Component.onCompleted: {
+        if (root.enabled)
+            root.refresh();
+    }
+
 
     Timer {
         interval: 5 * 60 * 1000
@@ -104,6 +110,11 @@ Item {
             refresh();
     }
 
+    onProviderSettingsChanged: {
+        if (enabled)
+            refresh();
+    }
+
     // ----- Fetch -----
 
     function quotaUrl(path) {
@@ -115,7 +126,8 @@ Item {
 
     function fetchQuota() {
         if (!root.apiKey) {
-            root.usageStatusText = "Missing API key";
+            root.usageStatusText = "Missing MiniMax API key";
+            root.diagnosticText = "Settings key length: " + root.settingsApiKeyLength + ". Running provider settings were not applied.";
             root.rateLimitPercent = -1;
             root.secondaryRateLimitPercent = -1;
             root.ready = true;
@@ -123,6 +135,7 @@ Item {
         }
 
         root.ready = false;
+        root.diagnosticText = "Fetching MiniMax quota with settings key length " + root.settingsApiKeyLength;
         root.usageStatusText = "";
         root.fetchQuotaEndpoint([
             "/api/openplatform/coding_plan/remains",
@@ -148,6 +161,7 @@ Item {
                     return;
                 }
                 root.usageStatusText = err + " from " + url;
+                root.diagnosticText = "Settings key length: " + root.settingsApiKeyLength;
                 root.rateLimitPercent = -1;
                 root.secondaryRateLimitPercent = -1;
                 root.ready = true;
@@ -171,6 +185,7 @@ Item {
                         return;
                     }
                     root.usageStatusText = msg + " from " + url;
+                    root.diagnosticText = "Settings key length: " + root.settingsApiKeyLength;
                     root.rateLimitPercent = -1;
                     root.secondaryRateLimitPercent = -1;
                     root.ready = true;
@@ -178,6 +193,7 @@ Item {
                 }
 
                 if (root.parseQuotaResponse(data)) {
+                    root.diagnosticText = "";
                     root.ready = true;
                     return;
                 }
@@ -188,6 +204,7 @@ Item {
                 }
 
                 root.usageStatusText = (lastError || "No quota data") + " from " + url;
+                root.diagnosticText = "Response keys: " + Object.keys(data).join(", ") + ". Settings key length: " + root.settingsApiKeyLength;
                 root.rateLimitPercent = -1;
                 root.secondaryRateLimitPercent = -1;
                 root.ready = true;
@@ -197,6 +214,7 @@ Item {
                     return;
                 }
                 root.usageStatusText = "Parse error from " + url;
+                root.diagnosticText = "Settings key length: " + root.settingsApiKeyLength;
                 root.rateLimitPercent = -1;
                 root.secondaryRateLimitPercent = -1;
                 root.ready = true;

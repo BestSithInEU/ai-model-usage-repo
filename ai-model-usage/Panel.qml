@@ -204,9 +204,13 @@ Item {
                             }
 
                             NText {
-                                text: root.selectedProvider?.authHelpText ?? ""
+                                text: (root.selectedProvider?.diagnosticText ?? "") !== ""
+                                      ? (root.selectedProvider?.diagnosticText ?? "")
+                                      : (root.selectedProvider?.authHelpText ?? "")
                                 pointSize: Style.fontSizeXS
                                 color: Color.mOnSurfaceVariant
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
                             }
                         }
                     }
