@@ -16,6 +16,15 @@ ColumnLayout {
         pluginApi.saveSettings();
     }
 
+    function applySettingsChange() {
+        if (pluginApi) {
+            pluginApi.pluginSettings = JSON.parse(JSON.stringify(root.editSettings));
+            pluginApi.saveSettings();
+        }
+        editSettingsChanged();
+    }
+
+
     spacing: Style.marginL
 
     NText {
@@ -419,7 +428,7 @@ ColumnLayout {
                         if (!editSettings.providers.minimax)
                             editSettings.providers.minimax = {};
                         editSettings.providers.minimax.apiKey = text;
-                        editSettingsChanged();
+                        root.applySettingsChange();
                     }
                 }
 
@@ -446,7 +455,7 @@ ColumnLayout {
                             if (!editSettings.providers.minimax)
                                 editSettings.providers.minimax = {};
                             editSettings.providers.minimax.region = key;
-                            editSettingsChanged();
+                            root.applySettingsChange();
                         }
                     }
                 }

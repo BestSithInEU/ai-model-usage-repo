@@ -4,13 +4,13 @@
     {
       "id": "ai-model-usage",
       "name": "AI Model Usage",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "author": "BestSithInEU",
       "description": "Shows AI coding assistant usage stats in the bar with detail panel (Claude Code, Codex, Copilot, OpenRouter, Zen, MiniMax)",
       "repository": "https://github.com/BestSithInEU/ai-model-usage-repo",
       "minNoctaliaVersion": "3.6.0",
       "license": "MIT",
-      "lastUpdated": "2026-05-18T22:30:00+03:00"
+      "lastUpdated": "2026-05-18T23:00:00+03:00"
     }
   ]
 }
