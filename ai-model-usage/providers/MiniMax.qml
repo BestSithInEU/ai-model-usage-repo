@@ -284,19 +284,19 @@ Item {
         ]);
         let used = root.firstFinite([
             quota.used_quota,
-            quota.used,
-            quota.current_interval_usage_count
+            quota.used
         ]);
         const remaining = root.firstFinite([
             quota.remaining_quota,
             quota.remaining,
             quota.tokens,
-            quota.current_interval_remaining_count
+            quota.current_interval_remaining_count,
+            quota.current_interval_usage_count
         ]);
 
         if (!(total > 0))
             return false;
-        if (!isFinite(used) && isFinite(remaining))
+        if (isFinite(remaining))
             used = total - remaining;
         if (!isFinite(used))
             return false;
@@ -329,12 +329,12 @@ Item {
                 codingRow = rec;
             } else {
                 const prevTotal = root.firstFinite([codingRow?.total_intervals, codingRow?.total, codingRow?.current_interval_total_count]);
-                const prevUsed = root.firstFinite([codingRow?.current_interval_usage_count, codingRow?.used]);
-                const prevRatio = prevTotal > 0 && isFinite(prevUsed) ? prevUsed / prevTotal : 0;
+                const prevRemaining = root.firstFinite([codingRow?.current_interval_usage_count, codingRow?.remaining]);
+                const prevRatio = prevTotal > 0 && isFinite(prevRemaining) ? (prevTotal - prevRemaining) / prevTotal : 0;
 
                 const currTotal = root.firstFinite([rec?.total_intervals, rec?.total, rec?.current_interval_total_count]);
-                const currUsed = root.firstFinite([rec?.current_interval_usage_count, rec?.used]);
-                const currRatio = currTotal > 0 && isFinite(currUsed) ? currUsed / currTotal : 0;
+                const currRemaining = root.firstFinite([rec?.current_interval_usage_count, rec?.remaining]);
+                const currRatio = currTotal > 0 && isFinite(currRemaining) ? (currTotal - currRemaining) / currTotal : 0;
 
                 if (currRatio > prevRatio)
                     codingRow = rec;
@@ -345,15 +345,15 @@ Item {
             return false;
 
         const total5h = root.firstFinite([codingRow?.total_intervals, codingRow?.total, codingRow?.current_interval_total_count]);
-        const used5h = root.firstFinite([codingRow?.current_interval_usage_count, codingRow?.used]);
+        const remain5h = root.firstFinite([codingRow?.current_interval_usage_count, codingRow?.remaining]);
         const totalWk = root.firstFinite([codingRow?.total_weekly_intervals, codingRow?.weekly_total, codingRow?.current_weekly_total_count]);
-        const usedWk = root.firstFinite([codingRow?.current_weekly_usage_count, codingRow?.weekly_used]);
+        const remainWk = root.firstFinite([codingRow?.current_weekly_usage_count, codingRow?.weekly_remaining]);
 
         let parsed = false;
 
-        // 5-hour rolling window -> primary
-        if (total5h > 0 && isFinite(used5h)) {
-            root.rateLimitPercent = Math.min(1, Math.max(0, used5h / total5h));
+        // 5-hour rolling window -> primary. MiniMax count fields are remaining quota.
+        if (total5h > 0 && isFinite(remain5h)) {
+            root.rateLimitPercent = Math.min(1, Math.max(0, (total5h - remain5h) / total5h));
             root.rateLimitLabel = "5h window";
             // No discrete reset time in this endpoint -- leave resetAt empty
             root.rateLimitResetAt = "";
@@ -362,9 +362,9 @@ Item {
             root.rateLimitPercent = -1;
         }
 
-        // Weekly window -> secondary (only if weekly fields are present)
-        if (totalWk > 0 && isFinite(usedWk)) {
-            root.secondaryRateLimitPercent = Math.min(1, Math.max(0, usedWk / totalWk));
+        // Weekly window -> secondary. MiniMax count fields are remaining quota.
+        if (totalWk > 0 && isFinite(remainWk)) {
+            root.secondaryRateLimitPercent = Math.min(1, Math.max(0, (totalWk - remainWk) / totalWk));
             root.secondaryRateLimitLabel = "Weekly (7-day)";
             root.secondaryRateLimitResetAt = "";
             parsed = true;
