@@ -16,7 +16,7 @@ Item {
     property string rateLimitLabel: "5h window"
     property string rateLimitResetAt: ""
     property real secondaryRateLimitPercent: -1
-    property string secondaryRateLimitLabel: "Weekly"
+    property string secondaryRateLimitLabel: "Weekly (7-day)"
     property string secondaryRateLimitResetAt: ""
 
     property int todayPrompts: 0
@@ -110,7 +110,7 @@ Item {
             return;
 
         root.usageStatusText = "";
-        const url = root.apiBaseUrl + "/api/openplatform/coding_plan/remains";
+        const url = root.apiBaseUrl + "/v1/api/openplatform/coding_plan/remains";
         const xhr = new XMLHttpRequest();
         xhr.open("GET", url);
         xhr.setRequestHeader("Authorization", "Bearer " + root.apiKey);
@@ -211,7 +211,7 @@ Item {
         // Weekly window -> secondary (only if weekly fields are present)
         if (totalWk > 0) {
             root.secondaryRateLimitPercent = Math.min(1, Math.max(0, (totalWk - remainWk) / totalWk));
-            root.secondaryRateLimitLabel = "Weekly";
+            root.secondaryRateLimitLabel = "Weekly (7-day)";
             root.secondaryRateLimitResetAt = "";
         } else {
             // No weekly data in this snapshot -- clear stale value
