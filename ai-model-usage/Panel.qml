@@ -204,9 +204,22 @@ Item {
                             }
 
                             NText {
-                                text: (root.selectedProvider?.diagnosticText ?? "") !== ""
-                                      ? (root.selectedProvider?.diagnosticText ?? "")
-                                      : (root.selectedProvider?.authHelpText ?? "")
+                                text: {
+                                    const diagnostic = root.selectedProvider?.diagnosticText ?? "";
+                                    if (diagnostic !== "")
+                                        return diagnostic;
+
+                                    const keyLength = root.selectedProvider?.settingsApiKeyLength;
+                                    if (keyLength !== undefined && keyLength !== null)
+                                        return "Runtime state: ready="
+                                             + String(root.selectedProvider?.ready ?? false)
+                                             + ", key length=" + String(keyLength)
+                                             + ", rate=" + String(root.selectedProvider?.rateLimitPercent ?? -1)
+                                             + ", weekly=" + String(root.selectedProvider?.secondaryRateLimitPercent ?? -1)
+                                             + ". Restart Noctalia Shell if this still shows stale values.";
+
+                                    return root.selectedProvider?.authHelpText ?? "";
+                                }
                                 pointSize: Style.fontSizeXS
                                 color: Color.mOnSurfaceVariant
                                 wrapMode: Text.WordWrap
