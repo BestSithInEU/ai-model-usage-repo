@@ -279,7 +279,8 @@ Item {
             quota.total_quota,
             quota.total,
             quota.quota,
-            quota.total_intervals
+            quota.total_intervals,
+            quota.current_interval_total_count
         ]);
         let used = root.firstFinite([
             quota.used_quota,
@@ -327,11 +328,11 @@ Item {
             if (!codingRow) {
                 codingRow = rec;
             } else {
-                const prevTotal = root.firstFinite([codingRow?.total_intervals, codingRow?.total]);
+                const prevTotal = root.firstFinite([codingRow?.total_intervals, codingRow?.total, codingRow?.current_interval_total_count]);
                 const prevUsed = root.firstFinite([codingRow?.current_interval_usage_count, codingRow?.used]);
                 const prevRatio = prevTotal > 0 && isFinite(prevUsed) ? prevUsed / prevTotal : 0;
 
-                const currTotal = root.firstFinite([rec?.total_intervals, rec?.total]);
+                const currTotal = root.firstFinite([rec?.total_intervals, rec?.total, rec?.current_interval_total_count]);
                 const currUsed = root.firstFinite([rec?.current_interval_usage_count, rec?.used]);
                 const currRatio = currTotal > 0 && isFinite(currUsed) ? currUsed / currTotal : 0;
 
@@ -343,9 +344,9 @@ Item {
         if (!codingRow)
             return false;
 
-        const total5h = root.firstFinite([codingRow?.total_intervals, codingRow?.total]);
+        const total5h = root.firstFinite([codingRow?.total_intervals, codingRow?.total, codingRow?.current_interval_total_count]);
         const used5h = root.firstFinite([codingRow?.current_interval_usage_count, codingRow?.used]);
-        const totalWk = root.firstFinite([codingRow?.total_weekly_intervals, codingRow?.weekly_total]);
+        const totalWk = root.firstFinite([codingRow?.total_weekly_intervals, codingRow?.weekly_total, codingRow?.current_weekly_total_count]);
         const usedWk = root.firstFinite([codingRow?.current_weekly_usage_count, codingRow?.weekly_used]);
 
         let parsed = false;
